@@ -26,3 +26,4 @@ reports/*
 *.c
 Pipfile
 .env
+test-reports/*
