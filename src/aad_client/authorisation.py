@@ -14,8 +14,8 @@ _CLIENT_ID_ENV_NAME = 'AAD_CLIENT_ID'
 _CLIENT_ID_AZ_CLI_ENV_NAME = 'servicePrincipalId'
 _TENANT_ID_ENV_NAME = 'AAD_TENANT_ID'
 _TENANT_ID_AZ_CLI_ENV_NAME = 'tenantId'
-_CLIENT_SECRET_ENV_NAME = 'AAD_CLIENT_SECRET'
-_CLIENT_SECRET_AZ_CLI_ENV_NAME = 'servicePrincipalKey'
+_CLIENT_SECRET_ENV_NAME = 'AAD_CLIENT_SECRET'  # nosec
+_CLIENT_SECRET_AZ_CLI_ENV_NAME = 'servicePrincipalKey'  # nosec
 
 
 logging.basicConfig(level=os.environ.get('LOGLEVEL', 'WARNING'))
