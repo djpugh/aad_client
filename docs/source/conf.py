@@ -15,6 +15,7 @@
 import os
 import datetime as dt
 
+import sphinx_material
 
 from aad_client import __version__
 __author__ = 'David Pugh'
@@ -37,11 +38,19 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
+    'sphinx.ext.extlinks',
     'sphinx.ext.todo',
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
-    'release_changelog'
+    'sphinx_github_changelog',
+    'sphinx_material'
 ]
+extlinks = {
+    "issue": ("https://github.com/djpugh/azure_devops_artifacts_helpers/issues/%s", "#"),
+    "pull": ("https://github.com/djpugh/azure_devops_artifacts_helpers/pull/%s", "PR #"),
+    "user": ("https://github.com/%s", "@"),
+    "pypi": ("https://pypi.org/project/%s", ""),
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -117,10 +126,51 @@ autoclass_content='both'
 # a list of builtin themes.
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+html_title = 'AAD Authentication Client'
+
+html_theme = 'sphinx_material'
+html_theme_path = sphinx_material.html_theme_path()
+html_context = sphinx_material.get_html_context()
+# Material theme options (see theme.conf for more information)
+html_theme_options = {
+
+    # Set the name of the project to appear in the navigation.
+    'nav_title': html_title,
+
+    # Specify a base_url used to generate sitemap.xml. If not
+    # specified, then no sitemap will be built.
+    'base_url': 'https://djpugh.github.io/aad_client',
+
+    # Set the repo location to get a badge with stats
+    'repo_url': 'https://github.com/djpugh/aad_client/',
+    'repo_name': 'aad_client',
+
+    # Visible levels of the global TOC; -1 means unlimited
+    'globaltoc_depth': 1,
+    # If False, expand all TOC entries
+    'globaltoc_collapse': False,
+    # If True, show hidden TOC entries
+    'globaltoc_includehidden': False,
+    "logo_icon": "verified_user",
+    "repo_type": "github",
+    # "globaltoc_depth": 2,
+    "color_primary": "light-green",
+    "color_accent": "light-green",
+    "touch_icon": "images/apple-icon-152x152.png",
+    "theme_color": "#21f33a",
+    "master_doc": False,
+    "nav_links": [
+        {
+            "href": "https://azure.microsoft.com/en-gb/services/active-directory/",
+            "internal": False,
+            "title": "Azure Active Directory",
+        }
+    ],
+    "version_dropdown": False,
+}
+html_sidebars = {
+    "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
+}
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.

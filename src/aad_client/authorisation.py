@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import sys
+from typing import List, Optional
 
 import msal
 import requests
@@ -17,6 +18,7 @@ _CLIENT_SECRET_ENV_NAME = 'AAD_CLIENT_SECRET'
 _CLIENT_SECRET_AZ_CLI_ENV_NAME = 'servicePrincipalKey'
 
 
+logging.basicConfig(level=os.environ.get('LOGLEVEL', 'WARNING'))
 logger = logging.getLogger()
 
 
@@ -25,16 +27,24 @@ class AADAuthentication:
 
     def __init__(
             self,
-            client_id=None,
-            tenant_id=None,
-            client_secret=None,
-            scopes=None):
+            client_id: Optional[str] = None,
+            tenant_id: Optional[str] = None,
+            client_secret: Optional[str] = None,
+            scopes: Optional[List[str]] = None,
+            username: Optional[str] = None):
         """Initialise AAD App for device code authentication.
 
         This can run both as a public app (requiring user login) or as a daemon app (requires a secret).
+
+        Keyword Args:
+            client_id (Optional[str]): The client id, defaults to AAD_CLIENT_ID (or servicePrincipalid) if not provided
+            tenant_id (Optional[str]): The tenant id, defaults to AAD_TENANT_ID (or tenantId) if not provided
+            client_secret (Optional[str]): The client secret, defaults to AAD_CLIENT_SECRET (or servicePrincipalKey) if not provided, signifies a daemon application
+            scopes (Optional[List[str]]): The scopes to request as default, can be overridden throught the ``get_token`` method
+            username(Optional[str]): The username to use when running as a desktop app
         """
         self.client_id = client_id
-
+        self._username = username
         # We only want to use the spa authentication directly
         if scopes is None:
             scopes = []
@@ -64,30 +74,49 @@ class AADAuthentication:
                 client_id,
                 authority=self._authority)
 
-    def get_token(self):
+    def get_tokens(self, scopes=None):
         """Get the token."""
+        if scopes is None:
+            scopes = self._scopes
+        logger.debug(f'Scopes: {scopes}')
         if self._daemon:
-            token = self._get_token_daemon()
+            token = self._get_tokens_daemon(scopes)
         else:
-            token = self._get_token_device_flow()
+            token = self._get_tokens_device_flow(scopes)
         return token
 
-    def _get_token_device_flow(self):
+    def _get_tokens_device_flow(self, scopes):
         """Authenticate via device code flow."""
+        # https://docs.microsoft.com/en-us/azure/active-directory/develop/scenario-desktop-app-registration
         # From https://docs.microsoft.com/en-us/azure/active-directory/develop/scenario-desktop-acquire-token?tabs=python#command-line-tool-without-a-web-browser
-        flow = self.msal_application.initiate_device_flow(scopes=self._scopes)
-        if "user_code" not in flow:
-            raise ValueError(
-                "Fail to create device flow. Err: %s" % json.dumps(flow, indent=4))
+        result = None
+        if self._username:
+            accounts = self.msal_application.get_accounts(self._username)
+            if accounts:
+                result = self.msal_application.acquire_token_silent(scopes, account=accounts[0])
 
-        print(flow["message"])
-        sys.stdout.flush()  # Some terminal needs this to ensure the message is shown
-        result = self.msal_application.acquire_token_by_device_flow(flow)
+        if not result:
+            flow = self.msal_application.initiate_device_flow(scopes=self._scopes)
+            if "user_code" not in flow:
+                raise ValueError(
+                    "Fail to create device flow. Err: %s" % json.dumps(flow, indent=4))
+
+            print(flow["message"])
+            sys.stdout.flush()  # Some terminal needs this to ensure the message is shown
+            logger.debug(f'flow: {flow}')
+            result = self.msal_application.acquire_token_by_device_flow(flow)
+        if "access_token" in result:
+            # Call a protected API with the access token.
+            return result
+        else:
+            logger.error(f'{result.get("error")}: {result.get("error_description")} (Correlation id: {result.get("correlation_id")}')  # You might need this when reporting a bug.
         return result
 
-    def _get_token_daemon(self):
+    def _get_tokens_daemon(self, scopes):
         """Authenticate via secret flow."""
-        result = self.msal_application.acquire_token_silent(self._scopes, account=None)
+        # https://docs.microsoft.com/en-us/azure/active-directory/develop/scenario-daemon-overview
+        # From https://docs.microsoft.com/en-us/azure/active-directory/develop/scenario-daemon-acquire-token?tabs=dotnet
+        result = self.msal_application.acquire_token_silent(scopes=self._scopes, account=None)
 
         if not result:
             logging.info("No suitable token exists in cache. Let's get a new one from AAD.")
@@ -95,14 +124,14 @@ class AADAuthentication:
 
         if "access_token" in result:
             # Call a protected API with the access token.
-            return result["access_token"]
+            return result
         else:
             logger.error(f'{result.get("error")}: {result.get("error_description")} (Correlation id: {result.get("correlation_id")}')  # You might need this when reporting a bug.
 
     @property
     def session(self):
         """Get a requests session with authentication."""
-        tokens = self.get_token()
+        tokens = self.get_tokens()
         access_token = tokens['access_token']
         session = requests.sessions.Session()
         session.headers.update({'Authorization': f'Bearer {access_token}'})
